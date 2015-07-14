@@ -12,74 +12,110 @@
 
 <body>
 <script src="d3.min.js"></script>
+
+<center>
+  <!-- Slider to change the # of bubbles -->
+  <p style="font-size:20px"> Min # of occurences for a keyword </p>
+  <input type="range" min="1" max="250" value="5">
+</center>
+
 <script>
 
 var diameter = 960,
     format = d3.format(",d"),
     color = d3.scale.category20c();
 
-var bubble = d3.layout.pack()
+// Create an empty pack
+var pack = d3.layout.pack()
     .sort(null)
     .size([diameter, diameter])
     .padding(1.5);
 
+// Creates a new SVG
 var svg = d3.select("body").append("svg")
     .attr("width", diameter)
     .attr("height", diameter)
     .attr("class", "bubble");
 
+// Load the data from thesis.json
 d3.json("thesis.json", function(error, root) {
+  // Here root contains the json file in the form {children:[{word:XX,value:XX}]}
   if (error) throw error;
-  var node = svg.selectAll(".node")
-      .data(
-        // Avant
-        /*
-        var classesObject = classes(root); => { children: [...]}
-        var nodes = bubble.nodes(classesObject); => [{}, {}, ...]
-        var filteredNodes = nodes.filter(...) => [{}, {}, ...] without root node
-        */
-        //bubble.nodes(classes(root)).filter(function(d) { return !d.children; })
 
-        // Après
-        /*
-        var classesObject = classes(root); =>{ children: [...]}
-        var filteredClassesObect = {
-          children: classesObject.children.filter().filter()...
-        } => { children: [...]} without words which length < 3, without words which occurs < 300, ...
-        var nodes = bubble.nodes(filteredClassesObect) => [{}, {}, ...]
-        var filteredNodes = nodes.filter(...) => [{}, {}, ...] without root node
-        */
-        bubble.nodes({
-          children: (
-            classes(root)
-              .children
-              .filter(function(d) { return d.word.length>3 })
-              .filter(function(d) { return d.value<300 })
-              .filter(function(d) { return d.value>40 })
-          )
-        }).filter(function(d) { return !d.children; })
-      )
-      .enter().append("g")
-      .attr("class", "node")
-      .attr("transform", function(d) {
-        return "translate(" + d.x + "," + d.y + ")"; }
-      );
+  var minLength=3;
+  var minOcc=40;
+  var maxOcc=250;
+  drawBubbles(minLength,minOcc,maxOcc);
 
-  node.append("title")
-    .text(function(d){
-      return d.word + ':' + format(d.value);
-    })
+  // Deals with the slider
+  var slider = d3.select('input');
+  slider.on('change', function () {
+    console.log(d3.event.target.value)
+    drawBubbles(minLength,d3.event.target.value,maxOcc);
+  //  (drawCircles(val));
+  });
 
-  node.append("circle")
-      .attr("r", function(d) { return d.r; })
-      .style("fill", function(d) { return color(d.value); });
+  function drawBubbles(minLength,minOcc,maxOcc){
+    // "The selection selectAll(".node") should correspond to data"
+    var node = svg.selectAll(".node")
+        .data(
+          pack.nodes({
+            children: (
+              classes(root)
+                .children
+                .filter(function(d) { return d.word.length>minLength })
+                .filter(function(d) { return d.value<maxOcc })
+                .filter(function(d) { return d.value>minOcc })
+              )
+            })
+            .filter(function(d) { return !d.children; })
+          );
 
-  node.append("text")
-      .attr("dy", ".3em")
-      .style("text-anchor", "middle")
-      .style("font-size",function(d){return 0.4*d.r+"px";})
-//      .text(function(d) { return d.word; });
-      .text(function(d) { return d.word.substring(0, d.r / 2); });
+        // Update existing nodes
+        node.transition().attr("transform", function(d) {
+          return "translate(" + d.x + "," + d.y + ")"; }
+        );
+        node.select("title")
+          .transition()
+          .text(function(d){
+            return d.word + ':' + format(d.value);
+          })
+        node.select("circle")
+          .transition()
+          .attr("r", function(d) { return d.r; })
+          .style("fill", function(d) { return color(d.value); });
+        node.select("text")
+          .transition()
+          .attr("dy", ".3em")
+          .style("text-anchor", "middle")
+          .style("font-size",function(d){return 0.4*d.r+"px";})
+          .text(function(d) { return d.word.substring(0, d.r / 2); });
+
+        // Create new nodes if needed
+        var newnode = node.enter().append("g");
+        console.log(newnode)
+        newnode.attr("class", "node")
+          .attr("transform", function(d) {
+          return "translate(" + d.x + "," + d.y + ")"; }
+        );
+        newnode.append("title")
+          .text(function(d){
+            return d.word + ':' + format(d.value);
+          })
+        newnode.append("circle")
+          .attr("r", function(d) { return d.r; })
+          .style("fill", function(d) { return color(d.value); });
+        newnode.append("text")
+          .attr("dy", ".3em")
+          .style("text-anchor", "middle")
+          .style("font-size",function(d){return 0.4*d.r+"px";})
+          .text(function(d) { return d.word.substring(0, d.r / 2); });
+
+    // Remove extra nodes
+    node.exit().remove();
+
+    };
+
 });
 
 // Returns a flattened hierarchy containing all leaf nodes under the root.
@@ -88,13 +124,11 @@ function classes(root) {
 
   function recurse(node) {
     if (node.children) node.children.forEach(function(child) { recurse(child); });
-    else classes.push({word: node.word, value: node.value});
+    else classes.push(node);
   }
 
   recurse(root);
   return {children: classes};
 }
-
-d3.select(self.frameElement).style("height", diameter + "px");
 
 </script>
